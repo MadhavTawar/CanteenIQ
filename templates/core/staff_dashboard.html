@@ -1,0 +1,29 @@
+{% extends 'base.html' %}
+{% load static %}
+{% block title %}Staff Dashboard — CanteenIQ{% endblock %}
+{% block content %}
+<h1>Staff Dashboard</h1>
+
+<section class="dashboard-section">
+    <h2>Incoming Orders</h2>
+    <div id="incoming-orders">Loading…</div>
+</section>
+
+<section class="dashboard-section">
+    <h2>Inventory</h2>
+    <div id="inventory-list">Loading…</div>
+</section>
+
+<section class="dashboard-section">
+    <h2>Tomorrow's Demand Forecast</h2>
+    <p class="muted">Predicted from same-weekday order history — see core/forecasting.py for the method.</p>
+    <div id="forecast-list">Loading…</div>
+</section>
+
+<section class="dashboard-section">
+    <h2>Today's Sales</h2>
+    <div id="sales-summary">Loading…</div>
+</section>
+
+<script src="{% static 'js/staff.js' %}"></script>
+{% endblock %}

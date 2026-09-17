@@ -1,0 +1,39 @@
+{% extends 'base.html' %}
+{% load static %}
+{% block title %}Menu — CanteenIQ{% endblock %}
+{% block content %}
+<h1>Today's Menu</h1>
+<div id="status-banner"></div>
+
+<div class="menu-grid">
+    {% for dish in dishes %}
+    <div class="dish-card" data-dish-id="{{ dish.id }}" data-price="{{ dish.price }}">
+        <div class="dish-header">
+            <h3>{{ dish.name }}</h3>
+            <span class="badge">{{ dish.get_category_display }}</span>
+        </div>
+        <p class="dish-desc">{{ dish.description }}</p>
+        <div class="dish-footer">
+            <span class="price">₹{{ dish.price }}</span>
+            <span class="stock" data-stock="{{ dish.inventory.quantity_available }}">
+                {{ dish.inventory.quantity_available }} left
+            </span>
+        </div>
+        <div class="qty-control">
+            <button class="qty-btn" data-action="dec">−</button>
+            <span class="qty-value">0</span>
+            <button class="qty-btn" data-action="inc">+</button>
+        </div>
+    </div>
+    {% empty %}
+    <p>No dishes available right now — check back later.</p>
+    {% endfor %}
+</div>
+
+<div class="cart-bar">
+    <span id="cart-summary">Cart empty</span>
+    <button id="place-order-btn" class="primary-btn" disabled>Place Order</button>
+</div>
+
+<script src="{% static 'js/menu.js' %}"></script>
+{% endblock %}

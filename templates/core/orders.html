@@ -1,0 +1,8 @@
+{% extends 'base.html' %}
+{% load static %}
+{% block title %}My Orders — CanteenIQ{% endblock %}
+{% block content %}
+<h1>My Orders</h1>
+<div id="orders-list">Loading…</div>
+<script src="{% static 'js/orders.js' %}"></script>
+{% endblock %}
