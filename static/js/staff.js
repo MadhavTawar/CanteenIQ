@@ -3,7 +3,18 @@ function getCookie(name) {
     return match ? match[2] : null;
 }
 const csrftoken = getCookie('csrftoken');
-const STATUS_CHOICES = ['PLACED', 'PREPARING', 'READY', 'COMPLETED', 'CANCELLED'];
+const STATUS_LABELS = {
+    PLACED: 'Order received',
+    PREPARING: 'Preparing',
+    READY: 'Prepared - awaiting payment',
+    COMPLETED: 'Completed',
+    CANCELLED: 'Cancelled',
+};
+const NEXT_STATUS = {
+    PLACED: 'PREPARING',
+    PREPARING: 'READY',
+    READY: 'COMPLETED',
+};
 let forecastChart;
 let salesChart;
 let knownOrderIds = null;
@@ -30,10 +41,13 @@ async function loadIncomingOrders() {
     }
     knownOrderIds = orderIds;
     const active = orders.filter(order => !['COMPLETED', 'CANCELLED'].includes(order.status));
-    document.getElementById('incoming-orders').innerHTML = active.length ? `<table><tr><th>#</th><th>Student</th><th>Items</th><th>Total</th><th>Status</th></tr>
-        ${active.map(order => `<tr><td>${order.id}</td><td>${order.student_username}</td><td>${order.items.map(item => `${item.quantity}×${item.dish_name}`).join(', ')}</td><td>₹${order.total_amount}</td><td><select class="status-select" data-order-id="${order.id}">${STATUS_CHOICES.map(status => `<option value="${status}" ${status === order.status ? 'selected' : ''}>${status}</option>`).join('')}</select></td></tr>`).join('')}</table>` : '<p class="muted">No active orders.</p>';
-    document.querySelectorAll('.status-select').forEach(select => select.addEventListener('change', async () => {
-        await fetch(`/api/orders/${select.dataset.orderId}/set_status/`, {method: 'PATCH', headers: {'Content-Type': 'application/json', 'X-CSRFToken': csrftoken}, body: JSON.stringify({status: select.value})});
+    document.getElementById('incoming-orders').innerHTML = active.length ? `<table><tr><th>#</th><th>Student</th><th>Items</th><th>Total</th><th>Status</th><th>Next action</th></tr>
+        ${active.map(order => `<tr><td>${order.id}</td><td>${order.student_username}</td><td>${order.items.map(item => `${item.quantity}×${item.dish_name}`).join(', ')}</td><td>₹${order.total_amount}</td><td><span class="status-pill status-${order.status}">${STATUS_LABELS[order.status]}</span></td><td>${NEXT_STATUS[order.status] ? `<button class="status-action primary-btn" data-order-id="${order.id}" data-next-status="${NEXT_STATUS[order.status]}">${NEXT_STATUS[order.status] === 'PREPARING' ? 'Confirm order' : NEXT_STATUS[order.status] === 'READY' ? 'Mark prepared' : 'Confirm pickup'}</button>` : ''}</td></tr>`).join('')}</table>` : '<p class="muted">No active orders.</p>';
+    document.querySelectorAll('.status-action').forEach(button => button.addEventListener('click', async () => {
+        button.disabled = true;
+        const response = await fetch(`/api/orders/${button.dataset.orderId}/set_status/`, {method: 'PATCH', headers: {'Content-Type': 'application/json', 'X-CSRFToken': csrftoken}, body: JSON.stringify({status: button.dataset.nextStatus})});
+        if (!response.ok) button.disabled = false;
+        await loadIncomingOrders();
     }));
 }
 

@@ -1,5 +1,19 @@
 let currentPage = 1;
 const knownStatuses = {};
+const STATUS_MESSAGES = {
+    PLACED: ['Order received', 'The canteen has received your order.'],
+    PREPARING: ['Order confirmed', 'Your order is being prepared.'],
+    READY: ['Order prepared', 'Your order is ready. Pay at the counter to receive it.'],
+    COMPLETED: ['Thank you', 'Your order has been completed. Thank you for ordering with CanteenIQ.'],
+    CANCELLED: ['Order cancelled', 'Your order was cancelled by the canteen.'],
+};
+const STATUS_LABELS = {
+    PLACED: 'Order received',
+    PREPARING: 'Preparing',
+    READY: 'Prepared - awaiting payment',
+    COMPLETED: 'Completed',
+    CANCELLED: 'Cancelled',
+};
 
 function showNotification(title, message) {
     const container = document.getElementById('notification-container');
@@ -20,14 +34,15 @@ function renderOrders(payload) {
     const orders = Array.isArray(payload) ? payload : payload.results;
     orders.forEach(order => {
         if (knownStatuses[order.id] && knownStatuses[order.id] !== order.status) {
-            showNotification(`Order #${order.id} updated`, `Your order is now ${order.status.toLowerCase()}.`);
+            const message = STATUS_MESSAGES[order.status];
+            showNotification(message[0], `Order #${order.id}: ${message[1]}`);
         }
         knownStatuses[order.id] = order.status;
     });
     const container = document.getElementById('orders-list');
     container.innerHTML = orders.length ? orders.map(order => `
         <div class="order-card"><div class="order-header"><strong>Order #${order.id}</strong>
-        <span class="status-pill status-${order.status}">${order.status}</span></div>
+        <span class="status-pill status-${order.status}">${STATUS_LABELS[order.status]}</span></div>
         <ul>${order.items.map(item => `<li>${item.quantity} × ${item.dish_name} — ₹${item.subtotal}</li>`).join('')}</ul>
         <div><strong>Total: ₹${order.total_amount}</strong></div>
         <div class="muted">${new Date(order.created_at).toLocaleString()}</div></div>

@@ -138,6 +138,18 @@ class OrderViewSet(viewsets.ModelViewSet):
         valid_statuses = dict(Order.Status.choices)
         if new_status not in valid_statuses:
             return Response({'detail': 'Invalid status.'}, status=status.HTTP_400_BAD_REQUEST)
+        allowed_transitions = {
+            Order.Status.PLACED: {Order.Status.PREPARING, Order.Status.CANCELLED},
+            Order.Status.PREPARING: {Order.Status.READY, Order.Status.CANCELLED},
+            Order.Status.READY: {Order.Status.COMPLETED},
+            Order.Status.COMPLETED: set(),
+            Order.Status.CANCELLED: set(),
+        }
+        if new_status != order.status and new_status not in allowed_transitions[order.status]:
+            return Response(
+                {'detail': f'Cannot move an order from {order.status} to {new_status}.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
         order.status = new_status
         order.save(update_fields=['status'])
         return Response(OrderSerializer(order).data)

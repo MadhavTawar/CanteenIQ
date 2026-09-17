@@ -67,6 +67,10 @@ docker compose up --build
 
 Phase 2 adds 8-second polling to the student orders and staff dashboard pages, in-place menu stock updates after ordering, client-side menu search/category filters, Chart.js forecast and sales charts, and paginated/date/status-filtered order history. Sales can be downloaded by staff from the dashboard or with `GET /api/sales/?export=csv`. Interactive OpenAPI documentation is available at `/api/docs/`.
 
+### Order workflow
+
+Orders follow a controlled staff workflow: `PLACED` displays as **Order received**, staff confirms it to move to `PREPARING`, staff marks it `READY` when prepared, and staff marks it `COMPLETED` after pickup/payment. Students receive a polling notification when the order is confirmed, prepared (with a pay-at-counter message), completed (with a thank-you message), or cancelled. The API rejects skipped status transitions.
+
 Demo logins (from `seed_demo`):
 
 - Staff: `staff` / `staff12345`

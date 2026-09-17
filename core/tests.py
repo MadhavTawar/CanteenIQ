@@ -117,6 +117,30 @@ class OrderVisibilityTests(RoleSetupMixin, TestCase):
         res = self.student1_client.patch(f'/api/orders/{order.id}/set_status/', {'status': 'READY'}, format='json')
         self.assertEqual(res.status_code, 403)
 
+    def test_staff_must_move_order_through_workflow(self):
+        order = Order.objects.create(student=self.student1)
+
+        skipped = self.staff_client.patch(
+            f'/api/orders/{order.id}/set_status/', {'status': 'READY'}, format='json'
+        )
+        confirmed = self.staff_client.patch(
+            f'/api/orders/{order.id}/set_status/', {'status': 'PREPARING'}, format='json'
+        )
+
+        self.assertEqual(skipped.status_code, 400)
+        self.assertEqual(confirmed.status_code, 200)
+        self.assertEqual(confirmed.json()['status'], Order.Status.PREPARING)
+
+    def test_staff_can_complete_only_after_order_is_ready(self):
+        order = Order.objects.create(student=self.student1, status=Order.Status.READY)
+
+        response = self.staff_client.patch(
+            f'/api/orders/{order.id}/set_status/', {'status': 'COMPLETED'}, format='json'
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()['status'], Order.Status.COMPLETED)
+
     def test_student_can_filter_orders_and_receive_paginated_shape(self):
         Order.objects.create(student=self.student1, status=Order.Status.READY)
         Order.objects.create(student=self.student1, status=Order.Status.PLACED)
