@@ -1,9 +1,12 @@
+import csv
+import logging
 from datetime import date, timedelta
 
 from django.db import transaction
 from django.db.models import Sum
+from django.http import HttpResponse
 from django.shortcuts import get_object_or_404
-from rest_framework import status, viewsets
+from rest_framework import status, throttling, viewsets
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.views import APIView
@@ -18,6 +21,13 @@ from .serializers import (
     OrderSerializer,
 )
 
+logger = logging.getLogger(__name__)
+LOW_STOCK_THRESHOLD = 5
+
+
+class OrderPlacementThrottle(throttling.UserRateThrottle):
+    scope = 'order_placement'
+
 
 class DishViewSet(viewsets.ModelViewSet):
     queryset = Dish.objects.select_related('inventory').all()
@@ -30,18 +40,54 @@ class InventoryViewSet(viewsets.ModelViewSet):
     serializer_class = InventorySerializer
     permission_classes = [IsStaffRole]
 
+    def perform_update(self, serializer):
+        inventory = self.get_object()
+        previous_quantity = inventory.quantity_available
+        updated = serializer.save()
+        if previous_quantity > LOW_STOCK_THRESHOLD >= updated.quantity_available:
+            logger.warning(
+                'LOW STOCK notification: %s has %s unit(s) remaining.',
+                updated.dish.name,
+                updated.quantity_available,
+            )
+
 
 class OrderViewSet(viewsets.ModelViewSet):
     serializer_class = OrderSerializer
     permission_classes = [IsOwnerOrStaff]
+    throttle_classes = [OrderPlacementThrottle]
     http_method_names = ['get', 'post', 'patch', 'head', 'options']
 
     def get_queryset(self):
         qs = Order.objects.select_related('student').prefetch_related('items__dish')
         user = self.request.user
         if user.profile.role == Profile.Role.STAFF:
-            return qs.all()
-        return qs.filter(student=user)
+            qs = qs.all()
+        else:
+            qs = qs.filter(student=user)
+
+        requested_status = self.request.query_params.get('status')
+        if requested_status:
+            qs = qs.filter(status=requested_status)
+        start_date = self.request.query_params.get('start_date')
+        if start_date:
+            qs = qs.filter(created_at__date__gte=start_date)
+        end_date = self.request.query_params.get('end_date')
+        if end_date:
+            qs = qs.filter(created_at__date__lte=end_date)
+        return qs.order_by('-created_at')
+
+    def list(self, request, *args, **kwargs):
+        queryset = self.filter_queryset(self.get_queryset())
+        pagination_requested = any(
+            key in request.query_params
+            for key in ('page', 'page_size', 'status', 'start_date', 'end_date')
+        )
+        if pagination_requested:
+            page = self.paginate_queryset(queryset)
+            if page is not None:
+                return self.get_paginated_response(self.get_serializer(page, many=True).data)
+        return Response(self.get_serializer(queryset, many=True).data)
 
     def create(self, request, *args, **kwargs):
         """Place an order.
@@ -133,4 +179,14 @@ class DailySalesView(APIView):
             .order_by('-units_sold')
         )
         revenue = sum(i.subtotal for i in items)
+        if request.query_params.get('export') == 'csv':
+            response = HttpResponse(content_type='text/csv')
+            response['Content-Disposition'] = f'attachment; filename="sales-{target_date.isoformat()}.csv"'
+            writer = csv.writer(response)
+            writer.writerow(['date', 'dish', 'units_sold'])
+            for row in per_dish:
+                writer.writerow([target_date.isoformat(), row['dish__name'], row['units_sold']])
+            writer.writerow([])
+            writer.writerow(['revenue', revenue])
+            return response
         return Response({'date': target_date.isoformat(), 'revenue': revenue, 'per_dish': list(per_dish)})

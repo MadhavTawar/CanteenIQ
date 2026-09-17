@@ -117,6 +117,16 @@ class OrderVisibilityTests(RoleSetupMixin, TestCase):
         res = self.student1_client.patch(f'/api/orders/{order.id}/set_status/', {'status': 'READY'}, format='json')
         self.assertEqual(res.status_code, 403)
 
+    def test_student_can_filter_orders_and_receive_paginated_shape(self):
+        Order.objects.create(student=self.student1, status=Order.Status.READY)
+        Order.objects.create(student=self.student1, status=Order.Status.PLACED)
+
+        res = self.student1_client.get('/api/orders/?status=READY&page=1')
+
+        self.assertEqual(res.status_code, 200)
+        self.assertEqual(res.json()['count'], 1)
+        self.assertEqual(res.json()['results'][0]['status'], Order.Status.READY)
+
 
 class RolePermissionTests(RoleSetupMixin, TestCase):
     def test_student_cannot_create_dish(self):
@@ -147,6 +157,20 @@ class RolePermissionTests(RoleSetupMixin, TestCase):
         anon = APIClient()
         res = anon.get('/api/orders/')
         self.assertEqual(res.status_code, 403)
+
+    def test_staff_can_download_sales_csv(self):
+        order = Order.objects.create(student=self.student1, status=Order.Status.COMPLETED)
+        OrderItem.objects.create(order=order, dish=self.dish, quantity=2, price_at_order=self.dish.price)
+
+        res = self.staff_client.get('/api/sales/?export=csv')
+
+        self.assertEqual(res.status_code, 200)
+        self.assertEqual(res['Content-Type'], 'text/csv')
+        self.assertIn('Veg Thali', res.content.decode())
+
+    def test_api_docs_are_available_to_authenticated_user(self):
+        res = self.student1_client.get('/api/docs/')
+        self.assertEqual(res.status_code, 200)
 
 
 class ForecastingTests(RoleSetupMixin, TestCase):
@@ -183,3 +207,16 @@ class ForecastingTests(RoleSetupMixin, TestCase):
         result = predict_demand(fresh_dish, date.today() + timedelta(days=5))
         self.assertEqual(result['predicted_quantity'], 0)
         self.assertIn('no order history', result['basis'])
+
+
+class InventoryNotificationTests(RoleSetupMixin, TestCase):
+    def test_crossing_low_stock_threshold_logs_notification(self):
+        with self.assertLogs('core.views_api', level='WARNING') as logs:
+            res = self.staff_client.patch(
+                f'/api/inventory/{self.dish.inventory.id}/',
+                {'quantity_available': 5},
+                format='json',
+            )
+
+        self.assertEqual(res.status_code, 200)
+        self.assertIn('LOW STOCK notification', logs.output[0])

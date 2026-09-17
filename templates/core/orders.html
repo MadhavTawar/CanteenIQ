@@ -3,6 +3,20 @@
 {% block title %}My Orders — CanteenIQ{% endblock %}
 {% block content %}
 <h1>My Orders</h1>
+<form id="order-filters" class="filter-bar">
+	<label>From <input name="start_date" type="date"></label>
+	<label>To <input name="end_date" type="date"></label>
+	<label>Status
+		<select name="status">
+			<option value="">All statuses</option>
+			<option value="PLACED">Placed</option><option value="PREPARING">Preparing</option>
+			<option value="READY">Ready</option><option value="COMPLETED">Completed</option>
+			<option value="CANCELLED">Cancelled</option>
+		</select>
+	</label>
+	<button class="primary-btn" type="submit">Filter</button>
+</form>
 <div id="orders-list">Loading…</div>
+<div id="orders-pagination" class="pagination"></div>
 <script src="{% static 'js/orders.js' %}"></script>
 {% endblock %}

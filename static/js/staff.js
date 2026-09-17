@@ -4,110 +4,70 @@ function getCookie(name) {
 }
 const csrftoken = getCookie('csrftoken');
 const STATUS_CHOICES = ['PLACED', 'PREPARING', 'READY', 'COMPLETED', 'CANCELLED'];
+let forecastChart;
+let salesChart;
+let knownOrderIds = null;
+
+function showNotification(title, message) {
+    const container = document.getElementById('notification-container');
+    const notification = document.createElement('div');
+    notification.className = 'notification';
+    notification.innerHTML = `<strong>${title}</strong><span>${message}</span>`;
+    container.appendChild(notification);
+    setTimeout(() => notification.remove(), 7000);
+}
 
 async function loadIncomingOrders() {
-    const res = await fetch('/api/orders/');
-    const orders = await res.json();
-    const container = document.getElementById('incoming-orders');
-
-    const active = orders.filter(o => !['COMPLETED', 'CANCELLED'].includes(o.status));
-    if (!active.length) {
-        container.innerHTML = '<p class="muted">No active orders.</p>';
-        return;
-    }
-
-    container.innerHTML = `
-        <table>
-            <tr><th>#</th><th>Student</th><th>Items</th><th>Total</th><th>Status</th></tr>
-            ${active.map(o => `
-                <tr>
-                    <td>${o.id}</td>
-                    <td>${o.student_username}</td>
-                    <td>${o.items.map(i => `${i.quantity}×${i.dish_name}`).join(', ')}</td>
-                    <td>₹${o.total_amount}</td>
-                    <td>
-                        <select class="status-select" data-order-id="${o.id}">
-                            ${STATUS_CHOICES.map(s => `<option value="${s}" ${s === o.status ? 'selected' : ''}>${s}</option>`).join('')}
-                        </select>
-                    </td>
-                </tr>
-            `).join('')}
-        </table>
-    `;
-
-    container.querySelectorAll('.status-select').forEach(select => {
-        select.addEventListener('change', async () => {
-            await fetch(`/api/orders/${select.dataset.orderId}/set_status/`, {
-                method: 'PATCH',
-                headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrftoken },
-                body: JSON.stringify({ status: select.value }),
-            });
+    const response = await fetch('/api/orders/');
+    if (!response.ok) return;
+    const payload = await response.json();
+    const orders = Array.isArray(payload) ? payload : payload.results;
+    const orderIds = new Set(orders.map(order => order.id));
+    if (knownOrderIds) {
+        orders.filter(order => !knownOrderIds.has(order.id)).forEach(order => {
+            showNotification('New order received', `Order #${order.id} from ${order.student_username} is waiting.`);
         });
-    });
+    }
+    knownOrderIds = orderIds;
+    const active = orders.filter(order => !['COMPLETED', 'CANCELLED'].includes(order.status));
+    document.getElementById('incoming-orders').innerHTML = active.length ? `<table><tr><th>#</th><th>Student</th><th>Items</th><th>Total</th><th>Status</th></tr>
+        ${active.map(order => `<tr><td>${order.id}</td><td>${order.student_username}</td><td>${order.items.map(item => `${item.quantity}×${item.dish_name}`).join(', ')}</td><td>₹${order.total_amount}</td><td><select class="status-select" data-order-id="${order.id}">${STATUS_CHOICES.map(status => `<option value="${status}" ${status === order.status ? 'selected' : ''}>${status}</option>`).join('')}</select></td></tr>`).join('')}</table>` : '<p class="muted">No active orders.</p>';
+    document.querySelectorAll('.status-select').forEach(select => select.addEventListener('change', async () => {
+        await fetch(`/api/orders/${select.dataset.orderId}/set_status/`, {method: 'PATCH', headers: {'Content-Type': 'application/json', 'X-CSRFToken': csrftoken}, body: JSON.stringify({status: select.value})});
+    }));
 }
 
 async function loadInventory() {
-    const res = await fetch('/api/inventory/');
-    const inventory = await res.json();
-    const container = document.getElementById('inventory-list');
-
-    container.innerHTML = `
-        <table>
-            <tr><th>Dish</th><th>Available</th><th>Update</th></tr>
-            ${inventory.map(inv => `
-                <tr>
-                    <td>${inv.dish_name}</td>
-                    <td>${inv.quantity_available}</td>
-                    <td>
-                        <input type="number" min="0" value="${inv.quantity_available}"
-                               data-inv-id="${inv.id}" class="qty-input" style="width:70px">
-                    </td>
-                </tr>
-            `).join('')}
-        </table>
-    `;
-
-    container.querySelectorAll('.qty-input').forEach(input => {
-        input.addEventListener('change', async () => {
-            await fetch(`/api/inventory/${input.dataset.invId}/`, {
-                method: 'PATCH',
-                headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrftoken },
-                body: JSON.stringify({ quantity_available: parseInt(input.value, 10) }),
-            });
-        });
-    });
+    const response = await fetch('/api/inventory/');
+    if (!response.ok) return;
+    const payload = await response.json();
+    const inventory = Array.isArray(payload) ? payload : payload.results;
+    document.getElementById('inventory-list').innerHTML = `<table><tr><th>Dish</th><th>Available</th><th>Update</th></tr>${inventory.map(item => `<tr><td>${item.dish_name}</td><td class="${item.quantity_available <= 5 ? 'low' : ''}">${item.quantity_available}</td><td><input type="number" min="0" value="${item.quantity_available}" data-inv-id="${item.id}" class="qty-input"></td></tr>`).join('')}</table>`;
+    document.querySelectorAll('.qty-input').forEach(input => input.addEventListener('change', async () => {
+        await fetch(`/api/inventory/${input.dataset.invId}/`, {method: 'PATCH', headers: {'Content-Type': 'application/json', 'X-CSRFToken': csrftoken}, body: JSON.stringify({quantity_available: parseInt(input.value, 10)})});
+        loadInventory();
+    }));
 }
 
 async function loadForecast() {
-    const res = await fetch('/api/forecast/');
-    const forecast = await res.json();
-    const container = document.getElementById('forecast-list');
-
-    container.innerHTML = `
-        <table>
-            <tr><th>Dish</th><th>Predicted qty (tomorrow)</th><th>Basis</th></tr>
-            ${forecast.map(f => `
-                <tr><td>${f.dish}</td><td>${f.predicted_quantity}</td><td class="muted">${f.basis}</td></tr>
-            `).join('')}
-        </table>
-    `;
+    const response = await fetch('/api/forecast/');
+    if (!response.ok) return;
+    const forecast = await response.json();
+    if (forecastChart) forecastChart.destroy();
+    forecastChart = new Chart(document.getElementById('forecast-chart'), {type: 'bar', data: {labels: forecast.map(item => item.dish), datasets: [{label: 'Predicted quantity', data: forecast.map(item => item.predicted_quantity), backgroundColor: '#d9480f'}]}, options: {responsive: true, plugins: {legend: {display: false}}}});
+    document.getElementById('forecast-list').innerHTML = `<details><summary>View forecast details</summary><table><tr><th>Dish</th><th>Predicted qty</th><th>Basis</th></tr>${forecast.map(item => `<tr><td>${item.dish}</td><td>${item.predicted_quantity}</td><td class="muted">${item.basis}</td></tr>`).join('')}</table></details>`;
 }
 
 async function loadSales() {
-    const res = await fetch('/api/sales/');
-    const data = await res.json();
-    const container = document.getElementById('sales-summary');
-
-    container.innerHTML = `
-        <p><strong>Revenue today: ₹${data.revenue}</strong></p>
-        <table>
-            <tr><th>Dish</th><th>Units sold</th></tr>
-            ${data.per_dish.map(d => `<tr><td>${d.dish__name}</td><td>${d.units_sold}</td></tr>`).join('')}
-        </table>
-    `;
+    const response = await fetch('/api/sales/');
+    if (!response.ok) return;
+    const data = await response.json();
+    if (salesChart) salesChart.destroy();
+    salesChart = new Chart(document.getElementById('sales-chart'), {type: 'bar', data: {labels: data.per_dish.map(item => item.dish__name), datasets: [{label: 'Units sold today', data: data.per_dish.map(item => item.units_sold), backgroundColor: '#2e7d32'}]}, options: {responsive: true, plugins: {legend: {display: false}}}});
+    document.getElementById('sales-summary').innerHTML = `<p><strong>Revenue today: ₹${data.revenue}</strong></p>`;
 }
 
-loadIncomingOrders();
-loadInventory();
-loadForecast();
-loadSales();
+document.getElementById('export-sales-btn').addEventListener('click', () => { window.location.href = '/api/sales/?export=csv'; });
+async function refreshDashboard() { await Promise.all([loadIncomingOrders(), loadInventory()]); }
+refreshDashboard(); loadForecast(); loadSales();
+setInterval(refreshDashboard, 8000);

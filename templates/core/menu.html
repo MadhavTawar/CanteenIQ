@@ -5,9 +5,19 @@
 <h1>Today's Menu</h1>
 <div id="status-banner"></div>
 
+<div class="menu-filters" aria-label="Filter menu">
+    <label>Search <input id="menu-search" type="search" placeholder="Find a dish"></label>
+    <label>Category
+        <select id="menu-category">
+            <option value="">All categories</option>
+            {% for value, label in categories %}<option value="{{ value }}">{{ label }}</option>{% endfor %}
+        </select>
+    </label>
+</div>
+
 <div class="menu-grid">
     {% for dish in dishes %}
-    <div class="dish-card" data-dish-id="{{ dish.id }}" data-price="{{ dish.price }}">
+    <div class="dish-card" data-dish-id="{{ dish.id }}" data-price="{{ dish.price }}" data-category="{{ dish.category }}">
         <div class="dish-header">
             <h3>{{ dish.name }}</h3>
             <span class="badge">{{ dish.get_category_display }}</span>
@@ -15,7 +25,7 @@
         <p class="dish-desc">{{ dish.description }}</p>
         <div class="dish-footer">
             <span class="price">₹{{ dish.price }}</span>
-            <span class="stock" data-stock="{{ dish.inventory.quantity_available }}">
+            <span class="stock" data-stock="{{ dish.inventory.quantity_available }}" data-max-stock="{{ dish.inventory.quantity_available }}">
                 {{ dish.inventory.quantity_available }} left
             </span>
         </div>

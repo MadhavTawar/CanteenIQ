@@ -19,10 +19,12 @@ core/
   forecasting.py The demand-forecasting logic (see below)
   signals.py     Auto-create Profile (on User) and Inventory (on Dish)
   admin.py       Django admin registrations
-  tests.py       20 tests: auth, ordering, concurrency, forecasting
+  tests.py       24 tests: auth, ordering, concurrency, forecasting, Phase 2 API behavior
   management/commands/seed_demo.py   Demo data + 8 weeks of order history
 templates/       Django templates (base + core + registration)
 static/          CSS + vanilla JS (no frontend framework)
+Dockerfile       Container image for the Django app
+docker-compose.yml  Django + PostgreSQL demo stack
 ```
 
 ### Data model
@@ -57,6 +59,14 @@ python manage.py seed_demo      # creates demo users, dishes, and 8 weeks of ord
 python manage.py runserver
 ```
 
+For a Postgres-backed demo with one command, use Docker Compose instead:
+
+```bash
+docker compose up --build
+```
+
+Phase 2 adds 8-second polling to the student orders and staff dashboard pages, in-place menu stock updates after ordering, client-side menu search/category filters, Chart.js forecast and sales charts, and paginated/date/status-filtered order history. Sales can be downloaded by staff from the dashboard or with `GET /api/sales/?export=csv`. Interactive OpenAPI documentation is available at `/api/docs/`.
+
 Demo logins (from `seed_demo`):
 
 - Staff: `staff` / `staff12345`
@@ -80,10 +90,10 @@ python manage.py migrate
 python manage.py test core
 ```
 
-20 tests covering: default role assignment on signup, auto-provisioned inventory rows, order placement and stock decrement, the overselling/concurrency guard, order visibility isolation between students, staff-vs-student permission boundaries on every endpoint, anonymous-access rejection, and the forecasting logic (same-weekday average, fallback to all-time average, zero-history case).
+24 tests covering: default role assignment on signup, auto-provisioned inventory rows, order placement and stock decrement, the overselling/concurrency guard, order visibility isolation between students, filtered/paginated order history, CSV sales export, API docs availability, low-stock notification logging, staff-vs-student permission boundaries on every endpoint, anonymous-access rejection, and the forecasting logic (same-weekday average, fallback to all-time average, zero-history case).
 
 ## Honest gaps (things not implemented, on purpose, to keep scope tight)
 
 - No payment gateway — billing computes totals but doesn't process payment.
-- No WebSockets/polling for live order-status push; the frontend re-fetches on load rather than streaming updates.
+- No WebSockets for live order-status push; the frontend uses lightweight 7–8 second polling for the student orders and staff dashboard views.
 - Forecasting doesn't account for holidays/exam schedules — would be the natural next feature to add.

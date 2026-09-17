@@ -28,7 +28,7 @@ def signup(request):
 @login_required
 def menu_view(request):
     dishes = Dish.objects.filter(is_available=True).select_related('inventory')
-    return render(request, 'core/menu.html', {'dishes': dishes})
+    return render(request, 'core/menu.html', {'dishes': dishes, 'categories': Dish.Category.choices})
 
 
 @login_required

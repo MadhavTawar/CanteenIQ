@@ -17,13 +17,17 @@
 <section class="dashboard-section">
     <h2>Tomorrow's Demand Forecast</h2>
     <p class="muted">Predicted from same-weekday order history — see core/forecasting.py for the method.</p>
+    <canvas id="forecast-chart" height="120"></canvas>
     <div id="forecast-list">Loading…</div>
 </section>
 
 <section class="dashboard-section">
     <h2>Today's Sales</h2>
+    <button id="export-sales-btn" class="primary-btn" type="button">Download CSV</button>
+    <canvas id="sales-chart" height="120"></canvas>
     <div id="sales-summary">Loading…</div>
 </section>
 
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
 <script src="{% static 'js/staff.js' %}"></script>
 {% endblock %}

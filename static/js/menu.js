@@ -2,35 +2,9 @@ function getCookie(name) {
     const match = document.cookie.match(new RegExp('(^| )' + name + '=([^;]+)'));
     return match ? match[2] : null;
 }
+
 const csrftoken = getCookie('csrftoken');
-
-const cart = {}; // { dishId: qty }
-
-function updateCartSummary() {
-    const dishCards = document.querySelectorAll('.dish-card');
-    let totalItems = 0;
-    let totalPrice = 0;
-
-    dishCards.forEach(card => {
-        const dishId = card.dataset.dishId;
-        const price = parseFloat(card.dataset.price);
-        const qty = cart[dishId] || 0;
-        if (qty > 0) {
-            totalItems += qty;
-            totalPrice += qty * price;
-        }
-    });
-
-    const summary = document.getElementById('cart-summary');
-    const placeBtn = document.getElementById('place-order-btn');
-    if (totalItems === 0) {
-        summary.textContent = 'Cart empty';
-        placeBtn.disabled = true;
-    } else {
-        summary.textContent = `${totalItems} item(s) · ₹${totalPrice.toFixed(2)}`;
-        placeBtn.disabled = false;
-    }
-}
+const cart = {};
 
 function showBanner(message, type) {
     const banner = document.getElementById('status-banner');
@@ -38,61 +12,85 @@ function showBanner(message, type) {
     setTimeout(() => { banner.innerHTML = ''; }, 5000);
 }
 
+function updateCartSummary() {
+    let totalItems = 0;
+    let totalPrice = 0;
+    document.querySelectorAll('.dish-card').forEach(card => {
+        const quantity = cart[card.dataset.dishId] || 0;
+        totalItems += quantity;
+        totalPrice += quantity * parseFloat(card.dataset.price);
+        card.querySelector('.qty-value').textContent = quantity;
+    });
+    document.getElementById('cart-summary').textContent = totalItems
+        ? `${totalItems} item(s) · ₹${totalPrice.toFixed(2)}` : 'Cart empty';
+    document.getElementById('place-order-btn').disabled = totalItems === 0;
+}
+
+function applyStock(card, quantity) {
+    const stock = card.querySelector('.stock');
+    const dishId = card.dataset.dishId;
+    stock.dataset.stock = quantity;
+    stock.dataset.maxStock = quantity;
+    stock.classList.toggle('low', quantity <= 5);
+    stock.textContent = quantity === 0 ? 'Sold out' : `${quantity} left`;
+    card.querySelectorAll('.qty-btn').forEach(button => { button.disabled = quantity === 0; });
+    if ((cart[dishId] || 0) > quantity) cart[dishId] = quantity;
+}
+
+async function refreshStock() {
+    const response = await fetch('/api/menu/');
+    if (!response.ok) return;
+    const payload = await response.json();
+    const dishes = Array.isArray(payload) ? payload : payload.results;
+    dishes.forEach(dish => {
+        const card = document.querySelector(`[data-dish-id="${dish.id}"]`);
+        if (card) applyStock(card, dish.quantity_available);
+    });
+    updateCartSummary();
+}
+
+function filterMenu() {
+    const search = document.getElementById('menu-search').value.toLowerCase();
+    const category = document.getElementById('menu-category').value;
+    document.querySelectorAll('.dish-card').forEach(card => {
+        const matchesName = card.querySelector('h3').textContent.toLowerCase().includes(search);
+        card.hidden = !matchesName || (category && card.dataset.category !== category);
+    });
+}
+
 document.querySelectorAll('.dish-card').forEach(card => {
     const dishId = card.dataset.dishId;
-    const qtyValueEl = card.querySelector('.qty-value');
-    const stockEl = card.querySelector('.stock');
-    const maxStock = parseInt(stockEl.dataset.stock, 10);
-
-    card.querySelectorAll('.qty-btn').forEach(btn => {
-        btn.addEventListener('click', () => {
-            let qty = cart[dishId] || 0;
-            if (btn.dataset.action === 'inc' && qty < maxStock) {
-                qty += 1;
-            } else if (btn.dataset.action === 'dec' && qty > 0) {
-                qty -= 1;
-            }
-            cart[dishId] = qty;
-            qtyValueEl.textContent = qty;
-            updateCartSummary();
-        });
-    });
-
-    if (maxStock === 0) {
-        stockEl.classList.add('low');
-        stockEl.textContent = 'Sold out';
-        card.querySelectorAll('.qty-btn').forEach(b => b.disabled = true);
-    } else if (maxStock <= 5) {
-        stockEl.classList.add('low');
-    }
+    card.querySelectorAll('.qty-btn').forEach(button => button.addEventListener('click', () => {
+        const available = parseInt(card.querySelector('.stock').dataset.stock, 10);
+        const current = cart[dishId] || 0;
+        cart[dishId] = button.dataset.action === 'inc'
+            ? Math.min(current + 1, available) : Math.max(current - 1, 0);
+        updateCartSummary();
+    }));
+    applyStock(card, parseInt(card.querySelector('.stock').dataset.stock, 10));
 });
 
+document.getElementById('menu-search').addEventListener('input', filterMenu);
+document.getElementById('menu-category').addEventListener('change', filterMenu);
 document.getElementById('place-order-btn').addEventListener('click', async () => {
-    const items = Object.entries(cart)
-        .filter(([, qty]) => qty > 0)
-        .map(([dish, qty]) => ({ dish: parseInt(dish, 10), quantity: qty }));
-
-    if (items.length === 0) return;
-
-    const res = await fetch('/api/orders/', {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-            'X-CSRFToken': csrftoken,
-        },
-        body: JSON.stringify({ items }),
+    const items = Object.entries(cart).filter(([, quantity]) => quantity > 0)
+        .map(([dish, quantity]) => ({ dish: parseInt(dish, 10), quantity }));
+    if (!items.length) return;
+    const response = await fetch('/api/orders/', {
+        method: 'POST', headers: {'Content-Type': 'application/json', 'X-CSRFToken': csrftoken},
+        body: JSON.stringify({items}),
     });
-
-    if (res.status === 201) {
-        showBanner('Order placed! Track it under "My Orders".', 'success');
-        Object.keys(cart).forEach(k => delete cart[k]);
-        document.querySelectorAll('.qty-value').forEach(el => el.textContent = '0');
+    if (response.status === 201) {
+        Object.keys(cart).forEach(key => delete cart[key]);
         updateCartSummary();
-        setTimeout(() => window.location.reload(), 1500); // refresh stock counts
+        await refreshStock();
+        showBanner('Order placed! Track it under "My Orders".', 'success');
     } else {
-        const err = await res.json();
-        showBanner(err.detail || 'Could not place order.', 'error');
+        const error = await response.json();
+        showBanner(error.detail || 'Could not place order.', 'error');
     }
 });
 
 updateCartSummary();
+refreshStock();
+setInterval(refreshStock, 8000);

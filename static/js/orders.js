@@ -1,26 +1,53 @@
-async function loadOrders() {
-    const res = await fetch('/api/orders/');
-    const orders = await res.json();
-    const container = document.getElementById('orders-list');
+let currentPage = 1;
+const knownStatuses = {};
 
-    if (!orders.length) {
-        container.innerHTML = '<p class="muted">No orders yet — head to the menu to place one.</p>';
-        return;
-    }
-
-    container.innerHTML = orders.map(order => `
-        <div class="order-card">
-            <div class="order-header">
-                <strong>Order #${order.id}</strong>
-                <span class="status-pill status-${order.status}">${order.status}</span>
-            </div>
-            <ul>
-                ${order.items.map(i => `<li>${i.quantity} × ${i.dish_name} — ₹${i.subtotal}</li>`).join('')}
-            </ul>
-            <div><strong>Total: ₹${order.total_amount}</strong></div>
-            <div class="muted">${new Date(order.created_at).toLocaleString()}</div>
-        </div>
-    `).join('');
+function showNotification(title, message) {
+    const container = document.getElementById('notification-container');
+    const notification = document.createElement('div');
+    notification.className = 'notification';
+    notification.innerHTML = `<strong>${title}</strong><span>${message}</span>`;
+    container.appendChild(notification);
+    setTimeout(() => notification.remove(), 7000);
 }
 
+function queryString() {
+    const params = new URLSearchParams(new FormData(document.getElementById('order-filters')));
+    params.set('page', currentPage);
+    return params.toString();
+}
+
+function renderOrders(payload) {
+    const orders = Array.isArray(payload) ? payload : payload.results;
+    orders.forEach(order => {
+        if (knownStatuses[order.id] && knownStatuses[order.id] !== order.status) {
+            showNotification(`Order #${order.id} updated`, `Your order is now ${order.status.toLowerCase()}.`);
+        }
+        knownStatuses[order.id] = order.status;
+    });
+    const container = document.getElementById('orders-list');
+    container.innerHTML = orders.length ? orders.map(order => `
+        <div class="order-card"><div class="order-header"><strong>Order #${order.id}</strong>
+        <span class="status-pill status-${order.status}">${order.status}</span></div>
+        <ul>${order.items.map(item => `<li>${item.quantity} × ${item.dish_name} — ₹${item.subtotal}</li>`).join('')}</ul>
+        <div><strong>Total: ₹${order.total_amount}</strong></div>
+        <div class="muted">${new Date(order.created_at).toLocaleString()}</div></div>
+    `).join('') : '<p class="muted">No orders match these filters.</p>';
+    const pagination = document.getElementById('orders-pagination');
+    if (Array.isArray(payload)) { pagination.innerHTML = ''; return; }
+    pagination.innerHTML = `<button ${payload.previous ? '' : 'disabled'} data-page="${currentPage - 1}">Previous</button>
+        <span>Page ${currentPage}</span><button ${payload.next ? '' : 'disabled'} data-page="${currentPage + 1}">Next</button>`;
+    pagination.querySelectorAll('button:not([disabled])').forEach(button => button.addEventListener('click', () => {
+        currentPage = parseInt(button.dataset.page, 10); loadOrders();
+    }));
+}
+
+async function loadOrders() {
+    const response = await fetch(`/api/orders/?${queryString()}`);
+    if (response.ok) renderOrders(await response.json());
+}
+
+document.getElementById('order-filters').addEventListener('submit', event => {
+    event.preventDefault(); currentPage = 1; loadOrders();
+});
 loadOrders();
+setInterval(loadOrders, 7000);

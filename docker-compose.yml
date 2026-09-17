@@ -1,0 +1,34 @@
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: canteeniq
+      POSTGRES_USER: canteeniq
+      POSTGRES_PASSWORD: canteeniq
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U canteeniq -d canteeniq"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+  web:
+    build: .
+    command: sh -c "python manage.py migrate && python manage.py runserver 0.0.0.0:8000"
+    volumes:
+      - .:/app
+    ports:
+      - "8000:8000"
+    environment:
+      USE_POSTGRES: "true"
+      DB_NAME: canteeniq
+      DB_USER: canteeniq
+      DB_PASSWORD: canteeniq
+      DB_HOST: db
+      DB_PORT: "5432"
+    depends_on:
+      db:
+        condition: service_healthy
+
+volumes:
+  postgres_data:

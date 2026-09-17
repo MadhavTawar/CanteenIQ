@@ -56,6 +56,10 @@ h2 { font-size: 1.15rem; margin-bottom: 10px; }
     margin-bottom: 90px;
 }
 
+.menu-filters, .filter-bar { display: flex; flex-wrap: wrap; gap: 12px; align-items: end; margin-bottom: 18px; }
+.menu-filters label, .filter-bar label { display: grid; gap: 4px; color: var(--muted); font-size: 0.85rem; }
+.menu-filters input, .menu-filters select, .filter-bar input, .filter-bar select { padding: 8px; border: 1px solid var(--border); border-radius: 6px; background: var(--card); }
+
 .dish-card {
     background: var(--card);
     border: 1px solid var(--border);
@@ -107,6 +111,7 @@ h2 { font-size: 1.15rem; margin-bottom: 10px; }
 .auth-form p.helptext, .auth-form ul { font-size: 0.75rem; color: var(--muted); }
 
 .dashboard-section { background: var(--card); border: 1px solid var(--border); border-radius: 10px; padding: 16px; margin-bottom: 16px; }
+.dashboard-section canvas { max-height: 280px; margin: 8px 0 16px; }
 
 table { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
 th, td { text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--border); }
@@ -123,5 +128,12 @@ th, td { text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--bord
 #status-banner .toast { padding: 10px 14px; border-radius: 8px; margin-bottom: 14px; font-size: 0.9rem; }
 .toast.error { background: #fdeaea; color: var(--danger); }
 .toast.success { background: #e6f7e6; color: var(--success); }
+.notification-container { position: fixed; right: 20px; top: 72px; z-index: 10; width: min(360px, calc(100vw - 40px)); }
+.notification { background: var(--card); border: 1px solid var(--brand); border-left: 5px solid var(--brand); border-radius: 8px; box-shadow: 0 8px 24px rgba(43, 37, 33, 0.18); margin-bottom: 10px; padding: 12px 14px; }
+.notification strong { display: block; margin-bottom: 3px; }
 
 select.status-select { padding: 4px; border-radius: 6px; border: 1px solid var(--border); }
+.qty-input { width: 80px; padding: 5px; border: 1px solid var(--border); border-radius: 6px; }
+.pagination { display: flex; justify-content: center; align-items: center; gap: 12px; margin: 18px 0; }
+.pagination button { padding: 6px 12px; border: 1px solid var(--border); border-radius: 6px; background: var(--card); cursor: pointer; }
+.pagination button:disabled { cursor: not-allowed; opacity: 0.5; }
